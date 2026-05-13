@@ -57,7 +57,15 @@ def test_upload_rejects_corrupt_pdf():
 
 @patch("app.api.v1.routes.documents.upload_pdf_to_storage")
 @patch("app.api.v1.routes.documents.get_supabase_client")
-def test_upload_success(mock_client, mock_storage):
+@patch("app.api.v1.routes.documents.validate_and_parse_pdf")
+def test_upload_success(mock_parse, mock_client, mock_storage):
+    from app.services.pdf_service import PDFParseResult
+
+    mock_parse.return_value = PDFParseResult(
+        page_count=1,
+        extracted_text="Sample extracted text from PDF.",
+        file_size=len(MINIMAL_PDF),
+    )
     mock_storage.return_value = ("path/to/file.pdf", "https://example.com/file.pdf")
 
     fake_record = {

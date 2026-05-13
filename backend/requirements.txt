@@ -1,12 +1,13 @@
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
-pydantic==2.10.3
+# realtime (supabase) requires pydantic>=2.11.7
+pydantic==2.11.7
 pydantic-settings==2.6.1
 python-multipart==0.0.17
 python-dotenv==1.0.1
 
-# Supabase
-supabase==2.10.0
+# Supabase (>=2.28: compatible with httpx 0.28+ required by google-genai)
+supabase==2.30.0
 
 # Vector DB
 qdrant-client==1.12.1
