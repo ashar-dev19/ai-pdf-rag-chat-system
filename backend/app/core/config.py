@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_service_key: str = ""
 
-    openai_api_key: str = ""
+    gemini_api_key: str = ""
 
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333
