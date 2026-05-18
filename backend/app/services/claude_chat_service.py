@@ -1,7 +1,7 @@
 import logging
 from typing import AsyncIterator, List, Optional
 
-from google import genai
+from anthropic import AsyncAnthropic
 
 from app.core.config import settings
 from app.models.chat import ChatResponse, SourceCitation, UsageInfo
@@ -9,7 +9,7 @@ from app.services.retrieval_service import retrieve_chunks
 
 logger = logging.getLogger(__name__)
 
-CHAT_MODEL = "gemini-2.5-flash"
+CLAUDE_MODEL = "claude-haiku-4-5-20251001"
 NO_CONTEXT_REPLY = (
     "I couldn't find relevant information in the uploaded documents to answer your question."
 )
@@ -31,45 +31,44 @@ def _build_prompt(query: str, chunks: list) -> str:
         for i, c in enumerate(chunks, start=1)
     ]
     context = "\n\n".join(context_blocks)
-    return f"{_SYSTEM_PROMPT}\n\nContext:\n{context}\n\nQuestion: {query}\n\nAnswer:"
+    return f"Context:\n{context}\n\nQuestion: {query}\n\nAnswer:"
 
 
-def _get_gemini_client() -> genai.Client:
-    return genai.Client(api_key=settings.gemini_api_key)
+def _get_client() -> AsyncAnthropic:
+    return AsyncAnthropic(api_key=settings.anthropic_api_key)
 
 
-async def chat(
+async def claude_chat(
     query: str,
     document_id: Optional[str] = None,
     top_k: int = 5,
     score_threshold: float = 0.5,
-    provider: str = "gemini",
 ) -> ChatResponse:
-    if provider == "voyage_claude":
-        from app.services.claude_chat_service import claude_chat
-        return await claude_chat(query, document_id, top_k, score_threshold)
-
     chunks = await retrieve_chunks(
         query=query,
         top_k=top_k,
         score_threshold=score_threshold,
         document_id=document_id,
-        provider="gemini",
+        provider="voyage_claude",
     )
 
     if not chunks:
         return ChatResponse(query=query, answer=NO_CONTEXT_REPLY, sources=[])
 
     prompt = _build_prompt(query, chunks)
-    client = _get_gemini_client()
+    client = _get_client()
 
-    response = client.models.generate_content(model=CHAT_MODEL, contents=prompt)
-    answer = response.text or NO_CONTEXT_REPLY
-    meta = response.usage_metadata
+    message = await client.messages.create(
+        model=CLAUDE_MODEL,
+        max_tokens=2048,
+        system=_SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    answer = message.content[0].text if message.content else NO_CONTEXT_REPLY
     usage = UsageInfo(
-        input_tokens=meta.prompt_token_count or 0,
-        output_tokens=meta.candidates_token_count or 0,
-        model=CHAT_MODEL,
+        input_tokens=message.usage.input_tokens,
+        output_tokens=message.usage.output_tokens,
+        model=CLAUDE_MODEL,
     )
 
     sources = [
@@ -84,31 +83,24 @@ async def chat(
     ]
 
     logger.info(
-        "Gemini chat: query=%r sources=%d in=%d out=%d",
+        "Claude chat: query=%r sources=%d in=%d out=%d",
         query[:60], len(sources), usage.input_tokens, usage.output_tokens,
     )
     return ChatResponse(query=query, answer=answer, sources=sources, usage=usage)
 
 
-async def chat_stream(
+async def claude_chat_stream(
     query: str,
     document_id: Optional[str] = None,
     top_k: int = 5,
     score_threshold: float = 0.5,
-    provider: str = "gemini",
 ) -> AsyncIterator[str]:
-    if provider == "voyage_claude":
-        from app.services.claude_chat_service import claude_chat_stream
-        async for chunk in claude_chat_stream(query, document_id, top_k, score_threshold):
-            yield chunk
-        return
-
     chunks = await retrieve_chunks(
         query=query,
         top_k=top_k,
         score_threshold=score_threshold,
         document_id=document_id,
-        provider="gemini",
+        provider="voyage_claude",
     )
 
     if not chunks:
@@ -117,11 +109,16 @@ async def chat_stream(
         return
 
     prompt = _build_prompt(query, chunks)
-    client = _get_gemini_client()
+    client = _get_client()
 
-    for part in client.models.generate_content_stream(model=CHAT_MODEL, contents=prompt):
-        if part.text:
-            escaped = part.text.replace("\n", "\\n")
+    async with client.messages.stream(
+        model=CLAUDE_MODEL,
+        max_tokens=2048,
+        system=_SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": prompt}],
+    ) as stream:
+        async for text in stream.text_stream:
+            escaped = text.replace("\n", "\\n")
             yield f"data: {escaped}\n\n"
 
     yield "data: [DONE]\n\n"

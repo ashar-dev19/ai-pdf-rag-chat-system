@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     supabase_service_key: str = ""
 
     gemini_api_key: str = ""
+    voyage_api_key: str = ""
+    anthropic_api_key: str = ""
 
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333

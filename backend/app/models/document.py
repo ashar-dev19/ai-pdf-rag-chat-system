@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import Enum
+from typing import Literal
 from pydantic import BaseModel
 
 
@@ -24,6 +25,7 @@ class DocumentResponse(BaseModel):
     page_count: int
     storage_path: str
     status: DocumentStatus
+    provider: Literal["gemini", "voyage_claude"] = "gemini"
     created_at: datetime
 
     class Config:

@@ -19,6 +19,12 @@ tiktoken==0.8.0
 # PDF parsing
 pypdf==5.1.0
 
+# Anthropic Claude (generation — voyage_claude provider)
+anthropic==0.51.0
+
+# Voyage AI (embeddings — voyage_claude provider)
+voyageai==0.3.2
+
 # Testing
 pytest==8.3.4
 pytest-asyncio==0.24.0

@@ -3,10 +3,11 @@ from pydantic import BaseModel, Field
 
 
 class ChatRequest(BaseModel):
-    query: str = Field(..., min_length=1, max_length=1000)
+    query: str = Field(..., min_length=1, max_length=10000)
     document_id: Optional[str] = None
     top_k: int = Field(default=5, ge=1, le=20)
     score_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+    provider: str = Field(default="gemini")
 
 
 class SourceCitation(BaseModel):
@@ -17,7 +18,14 @@ class SourceCitation(BaseModel):
     score: float
 
 
+class UsageInfo(BaseModel):
+    input_tokens: int
+    output_tokens: int
+    model: str
+
+
 class ChatResponse(BaseModel):
     query: str
     answer: str
     sources: List[SourceCitation]
+    usage: Optional[UsageInfo] = None

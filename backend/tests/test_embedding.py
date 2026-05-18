@@ -17,7 +17,7 @@ async def test_generate_embeddings_returns_one_vector_per_text():
     mock_embedding.values = fake_vector
 
     mock_response = MagicMock()
-    mock_response.embeddings = [mock_embedding, mock_embedding, mock_embedding]
+    mock_response.embeddings = [mock_embedding]
 
     mock_client = MagicMock()
     mock_client.models.embed_content.return_value = mock_response
@@ -31,25 +31,21 @@ async def test_generate_embeddings_returns_one_vector_per_text():
 
 
 @pytest.mark.asyncio
-async def test_generate_embeddings_batches_large_input():
+async def test_generate_embeddings_calls_once_per_text():
     fake_vector = [0.0] * 768
-    call_count = 0
 
-    def mock_embed_content(model, contents):
-        nonlocal call_count
-        call_count += 1
-        mock_response = MagicMock()
-        mock_response.embeddings = [
-            MagicMock(values=fake_vector) for _ in contents
-        ]
-        return mock_response
+    mock_embedding = MagicMock()
+    mock_embedding.values = fake_vector
+
+    mock_response = MagicMock()
+    mock_response.embeddings = [mock_embedding]
 
     mock_client = MagicMock()
-    mock_client.models.embed_content.side_effect = mock_embed_content
+    mock_client.models.embed_content.return_value = mock_response
 
     with patch("app.services.embedding_service._get_client", return_value=mock_client):
         from app.services.embedding_service import generate_embeddings
-        result = await generate_embeddings(["text"] * 250)
+        result = await generate_embeddings(["text"] * 5)
 
-    assert len(result) == 250
-    assert call_count == 3  # 100 + 100 + 50
+    assert len(result) == 5
+    assert mock_client.models.embed_content.call_count == 5

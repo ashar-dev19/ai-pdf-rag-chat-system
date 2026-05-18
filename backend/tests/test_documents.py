@@ -101,6 +101,7 @@ def test_list_documents(mock_client):
             "page_count": 2,
             "storage_path": "path/to/file.pdf",
             "status": "ready",
+            "provider": "gemini",
             "created_at": "2026-05-12T00:00:00",
         }
     ]
@@ -111,3 +112,72 @@ def test_list_documents(mock_client):
     response = client.get("/api/v1/documents/")
     assert response.status_code == 200
     assert len(response.json()) == 1
+
+
+@patch("app.api.v1.routes.documents.delete_document_vectors")
+@patch("app.api.v1.routes.documents.get_supabase_client")
+def test_delete_document(mock_client, mock_delete_vectors):
+    mock_db = MagicMock()
+    mock_db.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data = {
+        "storage_path": "path/to/file.pdf",
+        "provider": "gemini",
+    }
+    mock_client.return_value = mock_db
+
+    response = client.delete("/api/v1/documents/abc-123")
+    assert response.status_code == 204
+    mock_delete_vectors.assert_called_once_with("abc-123", "gemini")
+
+
+@patch("app.api.v1.routes.documents.delete_document_vectors")
+@patch("app.api.v1.routes.documents.get_supabase_client")
+def test_delete_document_voyage_provider(mock_client, mock_delete_vectors):
+    mock_db = MagicMock()
+    mock_db.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data = {
+        "storage_path": "path/to/file.pdf",
+        "provider": "voyage_claude",
+    }
+    mock_client.return_value = mock_db
+
+    response = client.delete("/api/v1/documents/xyz-789")
+    assert response.status_code == 204
+    mock_delete_vectors.assert_called_once_with("xyz-789", "voyage_claude")
+
+
+@patch("app.api.v1.routes.documents.get_supabase_client")
+def test_delete_document_not_found(mock_client):
+    mock_db = MagicMock()
+    mock_db.table.return_value.select.return_value.eq.return_value.single.return_value.execute.side_effect = Exception(
+        "Not found"
+    )
+    mock_client.return_value = mock_db
+
+    response = client.delete("/api/v1/documents/nonexistent")
+    assert response.status_code == 404
+
+
+@patch("app.api.v1.routes.documents.delete_all_vectors")
+@patch("app.api.v1.routes.documents.get_supabase_client")
+def test_delete_all_documents(mock_client, mock_delete_all):
+    mock_db = MagicMock()
+    mock_db.table.return_value.select.return_value.execute.return_value.data = [
+        {"id": "abc-123", "storage_path": "path/1.pdf", "provider": "gemini"},
+        {"id": "def-456", "storage_path": "path/2.pdf", "provider": "voyage_claude"},
+    ]
+    mock_client.return_value = mock_db
+
+    response = client.delete("/api/v1/documents/")
+    assert response.status_code == 204
+    assert mock_delete_all.call_count == 2
+
+
+@patch("app.api.v1.routes.documents.delete_all_vectors")
+@patch("app.api.v1.routes.documents.get_supabase_client")
+def test_delete_all_documents_empty(mock_client, mock_delete_all):
+    mock_db = MagicMock()
+    mock_db.table.return_value.select.return_value.execute.return_value.data = []
+    mock_client.return_value = mock_db
+
+    response = client.delete("/api/v1/documents/")
+    assert response.status_code == 204
+    assert mock_delete_all.call_count == 2  # still attempts both providers
